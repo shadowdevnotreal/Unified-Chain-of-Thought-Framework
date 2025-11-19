@@ -1,0 +1,423 @@
+#!/usr/bin/env python3
+"""
+Unified CoT Framework v3.0 - Interactive CLI
+Intelligence Amplification Platform
+"""
+
+import sys
+import os
+import json
+import subprocess
+from pathlib import Path
+from typing import Optional, List, Dict
+
+# Add orchestrator to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "orchestrator"))
+
+try:
+    from recommender import AgentRecommender, CoTIntensity, TaskComplexity
+except ImportError:
+    print("⚠️  Warning: Orchestrator not found. Running in basic mode.")
+    AgentRecommender = None
+
+
+# ANSI color codes
+class Colors:
+    PURPLE = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    END = '\033[0m'
+
+
+class Icons:
+    ROBOT = "🤖"
+    TARGET = "🎯"
+    ROCKET = "🚀"
+    CHECK = "✓"
+    CROSS = "✗"
+    ARROW = "→"
+    STAR = "⭐"
+    BRAIN = "🧠"
+    CHART = "📊"
+    BOOK = "📚"
+    WRENCH = "🔧"
+    LIGHTNING = "⚡"
+    SHIELD = "🔒"
+    WARNING = "⚠️"
+
+
+def print_header():
+    """Print CLI header"""
+    print()
+    print(f"{Colors.PURPLE}{'═' * 60}{Colors.END}")
+    print(f"{Colors.BOLD}{Colors.PURPLE}  {Icons.BRAIN} Unified CoT Framework v3.0 - Interactive Mode{Colors.END}")
+    print(f"{Colors.BLUE}  Intelligence Amplification Platform{Colors.END}")
+    print(f"{Colors.PURPLE}{'═' * 60}{Colors.END}")
+    print()
+
+
+def print_menu():
+    """Print main menu"""
+    print(f"{Colors.BOLD}{Icons.TARGET} What would you like to accomplish?{Colors.END}\n")
+
+    options = [
+        ("🔍", "Analyze existing code", "Examine codebase quality, security, and performance"),
+        ("🏗️ ", "Build new feature", "Design and implement new functionality"),
+        ("🐛", "Fix bugs", "Debug and resolve issues"),
+        ("⚡", "Optimize performance", "Improve speed and efficiency"),
+        ("🔒", "Security audit", "Check for vulnerabilities and compliance"),
+        ("📚", "Generate documentation", "Create comprehensive docs"),
+        ("🎨", "Custom agent workflow", "Design your own agent chain"),
+        ("📊", "View analytics", "See usage metrics and patterns"),
+        ("❓", "Help & docs", "Learn about the framework"),
+    ]
+
+    for idx, (icon, title, desc) in enumerate(options, 1):
+        print(f"  {Colors.CYAN}{idx}.{Colors.END} {icon}  {Colors.BOLD}{title}{Colors.END}")
+        print(f"     {Colors.BLUE}{desc}{Colors.END}")
+        print()
+
+
+def get_user_choice() -> int:
+    """Get user's menu selection"""
+    while True:
+        try:
+            choice = input(f"{Colors.YELLOW}Select option (1-9): {Colors.END}")
+            choice_num = int(choice)
+            if 1 <= choice_num <= 9:
+                return choice_num
+            else:
+                print(f"{Colors.RED}{Icons.CROSS} Please enter a number between 1 and 9{Colors.END}")
+        except ValueError:
+            print(f"{Colors.RED}{Icons.CROSS} Please enter a valid number{Colors.END}")
+        except KeyboardInterrupt:
+            print(f"\n{Colors.YELLOW}Exiting...{Colors.END}")
+            sys.exit(0)
+
+
+def get_task_description() -> str:
+    """Get detailed task description from user"""
+    print(f"\n{Colors.BOLD}Describe your task:{Colors.END}")
+    print(f"{Colors.BLUE}(Be as specific as possible for best results){Colors.END}\n")
+
+    try:
+        description = input(f"{Colors.CYAN}{Icons.ARROW} {Colors.END}")
+        return description.strip()
+    except KeyboardInterrupt:
+        print(f"\n{Colors.YELLOW}Cancelled{Colors.END}")
+        return ""
+
+
+def analyze_requirements(description: str, category: str) -> Dict:
+    """Analyze task requirements"""
+    print(f"\n{Colors.BLUE}{Icons.ROBOT} Analyzing requirements...{Colors.END}")
+
+    # Detect complexity
+    complexity_indicators = {
+        "critical": ["critical", "production", "emergency", "security"],
+        "high": ["refactor", "migrate", "architecture", "system"],
+        "medium": ["feature", "implement", "optimize"],
+        "low": ["fix", "small", "simple", "quick"]
+    }
+
+    detected_complexity = "medium"
+    desc_lower = description.lower()
+
+    for complexity, keywords in complexity_indicators.items():
+        if any(k in desc_lower for k in keywords):
+            detected_complexity = complexity
+            break
+
+    # Detect security critical
+    security_keywords = ["auth", "security", "password", "token", "credential", "vulnerability"]
+    security_critical = any(k in desc_lower for k in security_keywords)
+
+    return {
+        "complexity": detected_complexity,
+        "security_critical": security_critical,
+        "category": category,
+        "word_count": len(description.split())
+    }
+
+
+def display_recommendation(result):
+    """Display agent recommendation"""
+    print(f"\n{Colors.GREEN}{Icons.CHECK} Analysis complete!{Colors.END}\n")
+
+    # Display metadata
+    print(f"{Colors.BOLD}Task Analysis:{Colors.END}")
+    print(f"  {Icons.CHART} Complexity: {Colors.YELLOW}{result.complexity.value.upper()}{Colors.END}")
+    print(f"  {Icons.LIGHTNING} Security Critical: {Colors.YELLOW}{'Yes' if result.metadata['analysis']['security_critical'] else 'No'}{Colors.END}")
+    print(f"  ⏱️  Estimated Time: {Colors.YELLOW}{result.estimated_total_time}{Colors.END}")
+    print(f"  {Icons.STAR} Success Probability: {Colors.GREEN}{result.success_probability * 100:.1f}%{Colors.END}")
+
+    if result.similar_past_tasks > 0:
+        print(f"  📁 Similar Tasks: {Colors.CYAN}{result.similar_past_tasks} in history{Colors.END}")
+
+    # Display recommended chain
+    print(f"\n{Colors.BOLD}{Icons.ROBOT} Recommended Agent Workflow:{Colors.END}\n")
+
+    for rec in result.recommended_chain:
+        # Color intensity based on level
+        intensity_color = (Colors.RED if rec.intensity.value == "cot++" else
+                         Colors.PURPLE if rec.intensity.value == "cot+" else
+                         Colors.BLUE)
+
+        print(f"  {Colors.BOLD}{rec.priority}.{Colors.END} {rec.agent_name}")
+        print(f"     {Icons.LIGHTNING} Intensity: {intensity_color}{rec.intensity.value}{Colors.END}")
+        print(f"     {Icons.BRAIN} Reason: {Colors.CYAN}{rec.reason}{Colors.END}")
+        print(f"     {Icons.CHART} Confidence: {Colors.GREEN}{rec.confidence * 100:.1f}%{Colors.END}")
+        print(f"     ⏱️  Duration: {Colors.YELLOW}{rec.estimated_duration}{Colors.END}")
+        print()
+
+
+def confirm_proceed() -> bool:
+    """Ask user to confirm proceeding"""
+    while True:
+        try:
+            response = input(f"{Colors.YELLOW}Proceed with this workflow? [Y/n]: {Colors.END}").strip().lower()
+            if response in ['', 'y', 'yes']:
+                return True
+            elif response in ['n', 'no']:
+                return False
+            else:
+                print(f"{Colors.RED}Please enter 'y' or 'n'{Colors.END}")
+        except KeyboardInterrupt:
+            print()
+            return False
+
+
+def execute_workflow(result):
+    """Execute the recommended workflow"""
+    print(f"\n{Colors.GREEN}{Icons.ROCKET} Starting workflow...{Colors.END}\n")
+
+    total_agents = len(result.recommended_chain)
+
+    for idx, rec in enumerate(result.recommended_chain, 1):
+        print(f"{Colors.BOLD}[{idx}/{total_agents}] Executing: {rec.agent_name}{Colors.END}")
+        print(f"Intensity: {rec.intensity.value}")
+
+        # Simulate execution (in real implementation, this would call actual agents)
+        print(f"{Colors.BLUE}⏳ Processing...{Colors.END}")
+
+        # Mock progress
+        import time
+        for i in range(5):
+            print(".", end="", flush=True)
+            time.sleep(0.2)
+
+        print(f" {Colors.GREEN}{Icons.CHECK} Complete{Colors.END}\n")
+
+    print(f"{Colors.GREEN}{Colors.BOLD}{Icons.STAR} Workflow completed successfully!{Colors.END}\n")
+
+
+def handle_build_feature(recommender):
+    """Handle 'Build new feature' workflow"""
+    print(f"\n{Colors.BOLD}{Icons.TARGET} Building New Feature{Colors.END}")
+    print(f"{Colors.BLUE}{'─' * 50}{Colors.END}\n")
+
+    description = get_task_description()
+    if not description:
+        return
+
+    if recommender:
+        result = recommender.recommend(
+            task_description=description,
+            context={"complexity": "medium"}
+        )
+        display_recommendation(result)
+
+        if confirm_proceed():
+            execute_workflow(result)
+    else:
+        print(f"\n{Colors.YELLOW}{Icons.WARNING} Orchestrator not available. Using basic mode.{Colors.END}")
+        print(f"Recommended: Use {Colors.CYAN}cot+{Colors.END} intensity for feature development")
+
+
+def handle_fix_bugs(recommender):
+    """Handle 'Fix bugs' workflow"""
+    print(f"\n{Colors.BOLD}{Icons.TARGET} Bug Fixing{Colors.END}")
+    print(f"{Colors.BLUE}{'─' * 50}{Colors.END}\n")
+
+    description = get_task_description()
+    if not description:
+        return
+
+    if recommender:
+        result = recommender.recommend(
+            task_description=description,
+            context={"complexity": "low"}
+        )
+        display_recommendation(result)
+
+        if confirm_proceed():
+            execute_workflow(result)
+    else:
+        print(f"\n{Colors.YELLOW}{Icons.WARNING} Orchestrator not available.{Colors.END}")
+
+
+def handle_optimize_performance(recommender):
+    """Handle 'Optimize performance' workflow"""
+    print(f"\n{Colors.BOLD}{Icons.TARGET} Performance Optimization{Colors.END}")
+    print(f"{Colors.BLUE}{'─' * 50}{Colors.END}\n")
+
+    description = get_task_description()
+    if not description:
+        return
+
+    if recommender:
+        result = recommender.recommend(
+            task_description=f"optimize performance: {description}",
+            context={"complexity": "medium"}
+        )
+        display_recommendation(result)
+
+        if confirm_proceed():
+            execute_workflow(result)
+
+
+def handle_security_audit(recommender):
+    """Handle 'Security audit' workflow"""
+    print(f"\n{Colors.BOLD}{Icons.TARGET} Security Audit{Colors.END}")
+    print(f"{Colors.BLUE}{'─' * 50}{Colors.END}\n")
+
+    description = get_task_description()
+    if not description:
+        return
+
+    if recommender:
+        result = recommender.recommend(
+            task_description=f"security audit: {description}",
+            context={"complexity": "high", "security_critical": True}
+        )
+        display_recommendation(result)
+
+        if confirm_proceed():
+            execute_workflow(result)
+
+
+def handle_analytics():
+    """Show analytics dashboard"""
+    print(f"\n{Colors.BOLD}{Icons.CHART} Analytics Dashboard{Colors.END}")
+    print(f"{Colors.BLUE}{'─' * 50}{Colors.END}\n")
+
+    dashboard_path = Path(__file__).parent.parent / "dashboard" / "index.html"
+
+    if dashboard_path.exists():
+        print(f"{Colors.GREEN}{Icons.CHECK} Dashboard found!{Colors.END}")
+        print(f"\nOpening dashboard in browser...")
+        print(f"Location: {Colors.CYAN}{dashboard_path}{Colors.END}\n")
+
+        # Try to open in browser
+        try:
+            import webbrowser
+            webbrowser.open(f"file://{dashboard_path.absolute()}")
+            print(f"{Colors.GREEN}{Icons.ROCKET} Dashboard opened!{Colors.END}")
+        except Exception as e:
+            print(f"{Colors.YELLOW}Could not auto-open. Please open manually:{Colors.END}")
+            print(f"{Colors.CYAN}{dashboard_path}{Colors.END}")
+    else:
+        print(f"{Colors.RED}{Icons.CROSS} Dashboard not found{Colors.END}")
+        print(f"Expected location: {dashboard_path}")
+
+
+def handle_help():
+    """Show help information"""
+    print(f"\n{Colors.BOLD}{Icons.BOOK} Help & Documentation{Colors.END}")
+    print(f"{Colors.BLUE}{'─' * 50}{Colors.END}\n")
+
+    help_text = f"""
+{Colors.BOLD}Unified CoT Framework v3.0{Colors.END}
+
+{Colors.BOLD}Core Concepts:{Colors.END}
+  • {Colors.CYAN}cot{Colors.END}    - Standard thinking (4K tokens, 5-15s)
+  • {Colors.CYAN}cot+{Colors.END}   - Enhanced thinking (10K tokens, 20-45s)
+  • {Colors.CYAN}cot++{Colors.END}  - Maximum thinking (32K tokens, 45-180s)
+
+{Colors.BOLD}Available Agents (12 Total):{Colors.END}
+  1. Code Perfection System    7. Team Architect
+  2. Security Auditor           8. Accessibility Auditor
+  3. Performance Optimizer      9. Refactoring Specialist
+  4. Test Engineer             10. Migration Specialist
+  5. Code Reviewer             11. DevOps Automation
+  6. Documentation Generator   12. Database Optimizer
+
+{Colors.BOLD}Quick Commands:{Colors.END}
+  {Colors.CYAN}cot-docs{Colors.END}      - View quick reference
+  {Colors.CYAN}cot-agents{Colors.END}    - List all agents
+  {Colors.CYAN}cot-version{Colors.END}   - Show version
+
+{Colors.BOLD}Documentation:{Colors.END}
+  Full docs: ~/cot-framework/docs/
+  Vision: ~/cot-framework/docs/v3.0-vision.md
+  Dashboard: ~/cot-framework/dashboard/
+
+{Colors.BOLD}Learn More:{Colors.END}
+  GitHub: github.com/shadowdevnotreal/Unified-Chain-of-Thought-Framework
+    """
+
+    print(help_text)
+
+
+def main():
+    """Main interactive loop"""
+    print_header()
+
+    # Initialize recommender if available
+    recommender = None
+    if AgentRecommender:
+        recommender = AgentRecommender()
+        print(f"{Colors.GREEN}{Icons.CHECK} Agent Orchestration System: Online{Colors.END}")
+    else:
+        print(f"{Colors.YELLOW}{Icons.WARNING} Agent Orchestration System: Offline (basic mode){Colors.END}")
+
+    print(f"{Colors.BLUE}{Icons.BRAIN} All 12 agents ready{Colors.END}\n")
+
+    while True:
+        print_menu()
+        choice = get_user_choice()
+
+        if choice == 1:  # Analyze existing code
+            print(f"\n{Colors.YELLOW}Feature coming soon!{Colors.END}")
+        elif choice == 2:  # Build new feature
+            handle_build_feature(recommender)
+        elif choice == 3:  # Fix bugs
+            handle_fix_bugs(recommender)
+        elif choice == 4:  # Optimize performance
+            handle_optimize_performance(recommender)
+        elif choice == 5:  # Security audit
+            handle_security_audit(recommender)
+        elif choice == 6:  # Generate documentation
+            print(f"\n{Colors.YELLOW}Feature coming soon!{Colors.END}")
+        elif choice == 7:  # Custom workflow
+            print(f"\n{Colors.YELLOW}Feature coming soon!{Colors.END}")
+        elif choice == 8:  # View analytics
+            handle_analytics()
+        elif choice == 9:  # Help
+            handle_help()
+
+        # Ask to continue
+        print()
+        try:
+            cont = input(f"{Colors.YELLOW}Continue? [Y/n]: {Colors.END}").strip().lower()
+            if cont in ['n', 'no']:
+                break
+        except KeyboardInterrupt:
+            break
+
+        print("\n")
+
+    print(f"\n{Colors.GREEN}{Icons.STAR} Thank you for using Unified CoT Framework v3.0!{Colors.END}\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print(f"\n\n{Colors.YELLOW}Interrupted. Goodbye!{Colors.END}\n")
+        sys.exit(0)

@@ -1,0 +1,119 @@
+# Unified CoT Framework - Git Ignore File
+
+# Backup files created during installation
+*.backup.*
+*.backup/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.*.swp
+
+# Log files
+*.log
+logs/
+
+# Temporary files
+*.tmp
+tmp/
+temp/
+
+# Shell history
+.bash_history
+.zsh_history
+
+# Environment files (if any)
+.env
+.env.local
+
+# Node modules (if JavaScript tools added)
+node_modules/
+npm-debug.log*
+
+# Python (if Python tools added)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Test coverage
+coverage/
+.coverage
+htmlcov/
+
+# User-specific customizations
+custom-agents/
+local-config/
+
+# Generated documentation
+docs/_build/
+site/
+
+# Package files
+*.tar.gz
+*.zip
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache directories
+.cache/
+.pytest_cache/
+
+# MacOS
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# Emacs
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

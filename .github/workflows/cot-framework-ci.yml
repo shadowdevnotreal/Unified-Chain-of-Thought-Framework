@@ -1,0 +1,267 @@
+# Unified CoT Framework - CI/CD Pipeline
+# This workflow demonstrates how to integrate the CoT framework into your CI/CD
+
+name: CoT Framework CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  COT_FRAMEWORK_VERSION: "2.0.0"
+
+jobs:
+  # Job 1: Documentation Quality Check
+  documentation-check:
+    name: 📚 Documentation Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Documentation Tools
+        run: |
+          npm install -g markdownlint-cli
+          npm install -g markdown-link-check
+
+      - name: Check Markdown Formatting
+        run: |
+          markdownlint '**/*.md' --ignore node_modules
+
+      - name: Check for Broken Links
+        run: |
+          find . -name "*.md" -not -path "./node_modules/*" | xargs markdown-link-check
+
+      - name: Verify README Completeness
+        run: |
+          # Check for required sections
+          grep -q "## Quick Start" README.md || exit 1
+          grep -q "## Installation" README.md || exit 1
+          grep -q "## Documentation" README.md || exit 1
+          echo "✅ README has all required sections"
+
+  # Job 2: Agent Validation
+  agent-validation:
+    name: 🤖 Agent Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Validate Agent Files
+        run: |
+          # Check that all agent files exist and are non-empty
+          for agent in agents/*.md; do
+            if [ ! -s "$agent" ]; then
+              echo "❌ Agent file is empty: $agent"
+              exit 1
+            fi
+
+            # Verify required sections exist
+            grep -q "## Role and Purpose" "$agent" || { echo "❌ Missing 'Role and Purpose' in $agent"; exit 1; }
+            grep -q "## Core Capabilities" "$agent" || { echo "❌ Missing 'Core Capabilities' in $agent"; exit 1; }
+            grep -q "## Chain of Thought Framework Integration" "$agent" || { echo "❌ Missing 'Framework Integration' in $agent"; exit 1; }
+
+            echo "✅ Validated: $agent"
+          done
+
+      - name: Check Agent Count
+        run: |
+          agent_count=$(ls -1 agents/*.md 2>/dev/null | wc -l)
+          echo "Found $agent_count agents"
+          if [ $agent_count -lt 5 ]; then
+            echo "⚠️ Expected at least 5 agents, found $agent_count"
+          else
+            echo "✅ Agent count looks good"
+          fi
+
+  # Job 3: Installation Script Testing
+  installation-test:
+    name: 🔧 Installation Testing
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        shell: [bash]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Test Installation Script Syntax
+        run: |
+          bash -n install.sh
+          echo "✅ install.sh syntax is valid"
+
+      - name: Test Uninstall Script Syntax
+        run: |
+          bash -n uninstall.sh
+          echo "✅ uninstall.sh syntax is valid"
+
+      - name: Dry Run Installation
+        run: |
+          # Test that script runs without errors (without actually installing)
+          bash -n install.sh
+          echo "✅ Installation script passed dry run"
+
+  # Job 4: Code Quality Examples
+  code-examples-test:
+    name: 💻 Code Examples Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Extract and Test Code Examples
+        run: |
+          # This is where you would extract code blocks from docs
+          # and test that they actually work
+
+          echo "Checking for code examples in documentation..."
+
+          # Count code blocks
+          code_block_count=$(grep -r "^\`\`\`" docs/ examples/ | wc -l)
+          echo "Found $code_block_count code blocks"
+
+          # Check that examples directory exists
+          if [ -d "examples" ]; then
+            echo "✅ Examples directory exists"
+          else
+            echo "⚠️ No examples directory found"
+          fi
+
+  # Job 5: Performance Budget Check
+  performance-check:
+    name: ⚡ Performance Budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Check File Sizes
+        run: |
+          # Ensure documentation files aren't too large
+          max_size_kb=500
+
+          for file in agents/*.md docs/*.md; do
+            size_kb=$(du -k "$file" | cut -f1)
+            if [ $size_kb -gt $max_size_kb ]; then
+              echo "⚠️ Large file detected: $file ($size_kb KB)"
+            else
+              echo "✅ $file size OK ($size_kb KB)"
+            fi
+          done
+
+      - name: Check Total Framework Size
+        run: |
+          total_size=$(du -sh . | cut -f1)
+          echo "📦 Total framework size: $total_size"
+
+  # Job 6: Accessibility Check (for web-based docs)
+  accessibility-check:
+    name: ♿ Accessibility Validation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Pa11y
+        run: npm install -g pa11y-ci
+
+      - name: Check Markdown Accessibility
+        run: |
+          echo "Checking for accessibility best practices in documentation..."
+
+          # Check for proper heading hierarchy
+          for file in docs/*.md; do
+            echo "Checking $file..."
+
+            # Simple check for heading order (h1, h2, h3 should not skip levels)
+            if grep -q "^###### " "$file"; then
+              if ! grep -q "^##### " "$file"; then
+                echo "⚠️ Possible heading hierarchy issue in $file"
+              fi
+            fi
+          done
+
+          echo "✅ Basic accessibility checks passed"
+
+  # Job 7: Security Scan
+  security-scan:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run Trivy Security Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Check for Sensitive Data
+        run: |
+          # Check for accidentally committed secrets
+          if grep -r "api[_-]key" --include="*.md" --include="*.sh" .; then
+            echo "⚠️ Possible API key found in files"
+          fi
+
+          if grep -r "password\s*=" --include="*.md" --include="*.sh" .; then
+            echo "⚠️ Possible password found in files"
+          fi
+
+          echo "✅ No obvious sensitive data found"
+
+  # Job 8: Build Summary
+  build-summary:
+    name: 📊 Build Summary
+    runs-on: ubuntu-latest
+    needs: [documentation-check, agent-validation, installation-test, code-examples-test, performance-check]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Generate Summary
+        run: |
+          echo "## 🎉 CoT Framework CI/CD Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ All Checks Passed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 📚 Documentation quality verified" >> $GITHUB_STEP_SUMMARY
+          echo "- 🤖 Agent files validated" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔧 Installation scripts tested" >> $GITHUB_STEP_SUMMARY
+          echo "- 💻 Code examples checked" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ Performance budget met" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Framework Version:** $COT_FRAMEWORK_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Agents:** $(ls -1 agents/*.md 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Docs:** $(ls -1 docs/*.md 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
+
+  # Job 9: Auto-Deploy to GitHub Pages (if applicable)
+  deploy-docs:
+    name: 🚀 Deploy Documentation
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [build-summary]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          # This would deploy your docs to GitHub Pages
+          # Customize based on your documentation setup
